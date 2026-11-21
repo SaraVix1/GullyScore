@@ -157,3 +157,4 @@ Or upload without Git: `npm run build`, then
 After the first load the app works with no internet. Installing it also helps the
 browser keep its data. iPhones can still clear website data after weeks unused, so
 use **Settings → Export backup** now and then; **Import backup** restores it.
+# GullyScore
