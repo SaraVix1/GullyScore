@@ -117,8 +117,8 @@ How it works and what to expect:
 
 ## Deploy
 
-The build is a static folder (`dist/`) with relative paths, so it works at a domain
-root or under a sub-path. The service worker and manifest are included.
+The build is a static folder (`dist/`). Its base path is `/GullyScore/` (the repo name, for
+GitHub Pages); for a domain root such as Cloudflare Pages build with `VITE_BASE=/ npm run build`. The service worker and manifest are included.
 
 ### GitHub Pages (automatic, using the included workflow)
 
@@ -132,7 +132,7 @@ root or under a sub-path. The service worker and manifest are included.
 2. On GitHub open **Settings → Pages** and set **Source** to **GitHub Actions**.
 3. The workflow in `.github/workflows/deploy.yml` runs the tests, builds and publishes.
    Watch it under the **Actions** tab. The app goes live at
-   `https://<you>.github.io/<repo>/`.
+   `https://saravix1.github.io/GullyScore/`.
 4. Every push to `main` redeploys. Open apps show a "New version ready" bar.
 
 ### Cloudflare Pages

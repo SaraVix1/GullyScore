@@ -35,13 +35,14 @@ function serviceWorker() {
   };
 }
 
-export default defineConfig({
-  // Relative base so the same build works at a domain root (Cloudflare Pages)
-  // or under /<repo>/ (GitHub Pages).
-  base: './',
+// GitHub Pages serves a project site at /<repo>/, and the repo is named
+// GullyScore (case matters in the URL). Dev runs at the root. To host at a
+// domain root instead (Cloudflare Pages), build with VITE_BASE=/ .
+export default defineConfig(({ command }) => ({
+  base: process.env.VITE_BASE || (command === 'build' ? '/GullyScore/' : '/'),
   plugins: [svelte(), serviceWorker()],
   build: {
     target: 'es2020',
     assetsInlineLimit: 0,
   },
-});
+}));

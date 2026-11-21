@@ -1,6 +1,6 @@
 {
-  "name": "Gully Score",
-  "short_name": "Gully Score",
+  "name": "GullyScore",
+  "short_name": "GullyScore",
   "description": "Ball-by-ball scoring for local cricket. Works offline.",
   "id": "./",
   "start_url": "./",
