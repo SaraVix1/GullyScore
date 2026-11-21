@@ -1,0 +1,329 @@
+:root {
+  /* Broadcast scoreboard. Every colour in the app comes from these variables.
+     Dark is the default; theme.js sets data-theme="light" | "dark" (before first
+     paint, from index.html) and may override --accent, --accent-ink, --accent-text. */
+  --bg: #040817;
+  --surface: #0b1430;
+  --surface-2: #121f45;
+  --surface-3: #1b2c5c;
+  --line: #4a68b3;
+  --text: #ffffff;
+  --muted: #b8c4e8;
+  --dim: #94a3cf;
+  --accent: #2dd4bf;
+  --accent-ink: #0a0d05;
+  --accent-text: var(--accent); /* the accent used as text on the page background */
+  --red: #e01e1e;
+  --red-ink: #ffffff;
+  --amber: #ffb000;
+  --amber-ink: #1a1200;
+  --blue: #1fb2ff;
+  --blue-ink: #001624;
+  --six: #d6007a;
+  --six-ink: #ffffff;
+  --violet: #d6007a;
+  --toast-bg: #ffffff;
+  --toast-ink: #0a1128;
+  --radius: 4px;
+  --cut: 12px; /* the angled corner on broadcast panels */
+  --gutter: 16px;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Condensed system faces only (nothing is downloaded): iOS has Avenir Next
+     Condensed, Android maps sans-serif-condensed to Roboto Condensed. */
+  --display: 'Avenir Next Condensed', 'Roboto Condensed', sans-serif-condensed, 'Arial Narrow', 'Bahnschrift',
+    'DejaVu Sans Condensed', 'Liberation Sans Narrow', 'Helvetica Neue', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #e9edf5;
+  --surface: #ffffff;
+  --surface-2: #f3f5fa;
+  --surface-3: #dde3f0;
+  --line: #7684a8;
+  --text: #0a1128;
+  --muted: #34406a;
+  --dim: #4a5679;
+  --accent: #0f766e;
+  --accent-ink: #ffffff;
+  --toast-bg: #0a1128;
+  --toast-ink: #ffffff;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scrollbar-color: var(--line) var(--bg);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.35;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+#app {
+  min-height: 100%;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input::placeholder {
+  color: var(--dim);
+  opacity: 1;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-stretch: condensed;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+/* Broadcast type: condensed, heavy, uppercase. */
+.display {
+  font-family: var(--display);
+  font-stretch: condensed;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* shared controls */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 18px;
+  border-radius: var(--radius);
+  background: var(--surface-3);
+  font-family: var(--display);
+  font-stretch: condensed;
+  font-weight: 800;
+  font-size: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1.1;
+  text-align: center;
+  transition: transform 0.06s ease, filter 0.1s ease;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+  filter: brightness(1.2);
+}
+
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn.danger {
+  background: var(--red);
+  color: var(--red-ink);
+}
+
+.btn.ghost {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.btn.big {
+  min-height: 60px;
+  font-size: 20px;
+}
+
+.label {
+  font-family: var(--display);
+  font-stretch: condensed;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.seg {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius);
+}
+
+.seg button {
+  flex: 1;
+  min-height: 48px;
+  padding: 0 10px;
+  border-radius: 2px;
+  font-weight: 700;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seg button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.text-input {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  border: 2px solid var(--line);
+  background: var(--bg);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.text-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ball chips */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 7px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  font-family: var(--display);
+  font-stretch: condensed;
+  font-weight: 900;
+  font-size: 18px;
+  white-space: nowrap;
+}
+
+.chip.dot {
+  color: var(--muted);
+}
+
+.chip.four {
+  background: var(--blue);
+  color: var(--blue-ink);
+}
+
+.chip.six {
+  background: var(--six);
+  color: var(--six-ink);
+}
+
+.chip.x {
+  background: transparent;
+  color: var(--amber);
+  box-shadow: inset 0 0 0 2px var(--amber);
+}
+
+.chip.w {
+  background: var(--red);
+  color: var(--red-ink);
+}
+
+#update-bar {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--display);
+  font-stretch: condensed;
+  font-weight: 800;
+  text-transform: uppercase;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+
+/* Toasts: a flat lower-third caption, no elevation. */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 24px);
+  transform: translateX(-50%);
+  z-index: 60;
+  width: max-content;
+  max-width: calc(100% - 32px);
+  padding: 12px 16px;
+  border-radius: 2px;
+  border-left: 6px solid var(--accent);
+  background: var(--toast-bg);
+  color: var(--toast-ink);
+  font-weight: 700;
+  pointer-events: none;
+  animation: toast-in 0.16s ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    transform: translate(-50%, 12px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

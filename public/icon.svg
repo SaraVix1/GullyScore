@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="g" cx="0.36" cy="0.34" r="0.75">
+      <stop offset="0" stop-color="#ff5c4a"/>
+      <stop offset="1" stop-color="#a81618"/>
+    </radialGradient>
+    <clipPath id="c"><circle cx="32" cy="32" r="21"/></clipPath>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#d4ff2a"/>
+  <circle cx="32" cy="32" r="23" fill="#050706"/>
+  <circle cx="32" cy="32" r="21" fill="url(#g)"/>
+  <g clip-path="url(#c)" fill="none" stroke="#fff" stroke-width="1.6">
+    <circle cx="63" cy="1" r="42"/>
+    <circle cx="63" cy="1" r="47"/>
+  </g>
+</svg>
