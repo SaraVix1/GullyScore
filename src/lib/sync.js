@@ -1,5 +1,5 @@
 // Live sync between two phones: who may score, and keeping the match in step.
-// Transport-agnostic (WebRTC lives in peer.js) so the rules are unit-tested.
+// Transport-agnostic (WebRTC lives in live.js) so the rules are unit-tested.
 //
 // Exactly one phone is the scorer. Authority is a (term, scorer) pair: every
 // handover bumps `term`. Each message carries the sender's pair and full match;
@@ -140,10 +140,12 @@ export function createSync({ deviceId, mode = () => 'ask', send, onChange = () =
       return isScorer() ? 'scorer' : 'viewer';
     },
     // The phone that starts sharing scores first.
-    host(match) {
+    // `series` names the series to share when no match is being scored yet.
+    host(match, series = null) {
       s.term = Math.max(s.term, 1);
       s.scorer = deviceId;
       s.match = match;
+      if (!match && series) s.series = series;
       follow(match);
       changed();
     },

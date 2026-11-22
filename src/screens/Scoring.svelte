@@ -249,8 +249,10 @@
         ✎ {match.log?.length || 0}
       </button>
       {#if live}
-        <button class="pill" class:off={!live.connected && live.phase !== 'pairing'} onclick={onlive}>
-          {live.connected ? (viewer ? '👀 Live' : '📡 Live') : live.phase === 'pairing' ? '📡 Pairing…' : '⚠ Offline'}
+        <button class="pill" class:off={!live.connected && live.phase !== 'waiting'} onclick={onlive}>
+          {live.connected
+            ? viewer ? '👀 Live' : '📡 Live'
+            : live.phase === 'waiting' ? '📡 Room open' : live.phase === 'lost' ? '⚠ Offline' : '📡 Connecting…'}
         </button>
       {/if}
     </div>
@@ -665,7 +667,7 @@
       {match.players} a side · {match.overs} overs · {match.teams[match.toss.winner].name} won the toss and chose to
       {match.toss.choice}.
       {#if !viewer}To hand scoring to someone else on this phone, just pass it over: every ball is saved, and they can
-        tap Resume match after reopening the app. To score from another phone, use Share live.{/if}
+        tap Resume match after reopening the app. To score from another phone, use Share live to open a room.{/if}
     </p>
   </Sheet>
 {:else if sheet?.type === 'force'}

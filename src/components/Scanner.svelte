@@ -3,7 +3,8 @@
   // (Android Chrome) and our own decoder elsewhere (iPhone Safari).
   import { decodeQR } from '../lib/qr.js';
 
-  let { onresult } = $props();
+  // accept(text): is this a code we understand? Other QR codes are ignored.
+  let { onresult, accept = (t) => !!t, placeholder = 'Paste the code' } = $props();
 
   let video;
   let error = $state('');
@@ -42,7 +43,7 @@
           text = decodeQR(ctx.getImageData(0, 0, canvas.width, canvas.height));
         }
       }
-      if (text && /^GS1/i.test(text.trim())) {
+      if (text && accept(text.trim())) {
         navigator.vibrate?.(30);
         return onresult(text.trim());
       }
@@ -80,8 +81,8 @@
 </div>
 {#if error}<p class="error">{error}</p>{/if}
 {#if pasting}
-  <textarea class="paste" rows="3" placeholder="Paste the code (starts with GS1)" bind:value={pasted}></textarea>
-  <button class="btn primary block" disabled={!/GS1/i.test(pasted)} onclick={() => onresult(pasted.trim())}>Use this code</button>
+  <textarea class="paste" rows="3" {placeholder} bind:value={pasted}></textarea>
+  <button class="btn primary block" disabled={!accept(pasted.trim())} onclick={() => onresult(pasted.trim())}>Use this code</button>
 {:else}
   <button class="link" onclick={() => (pasting = true)}>Can't scan? Paste the code instead</button>
 {/if}

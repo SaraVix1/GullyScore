@@ -3,8 +3,24 @@
   import { downloadBlob } from '../lib/share.js';
   import { PRESETS, getMode, setMode, getAccent, setAccent } from '../lib/theme.js';
   import { inkFor } from '../lib/teams.js';
+  import { loadTurn, saveTurn, clearTurn, mask } from '../lib/room.js';
+  import ShareList from '../components/ShareList.svelte';
 
-  let { prefs = {}, onprefs, onback, onimported } = $props();
+  let { prefs = {}, onprefs, onback, onimported, canCreate = false, sharelist = [], oncreate, onjoin, onremove } = $props();
+
+  // TURN key from the user's own Open Relay account, on this phone only.
+  let turn = $state(loadTurn());
+  let turnUser = $state('');
+  let turnPass = $state('');
+  function keepTurn() {
+    saveTurn(turnUser.trim(), turnPass.trim());
+    turn = loadTurn();
+    turnUser = turnPass = '';
+  }
+  function dropTurn() {
+    clearTurn();
+    turn = null;
+  }
   const takeover = $derived(prefs.takeover || 'ask');
 
   // Appearance is saved on this phone only and never synced.
@@ -101,7 +117,18 @@
   </section>
 
   <section class="card">
-    <div class="label">Live sharing: takeover mode</div>
+    <div class="label">Sync</div>
+    <p>Share the current series with another phone, live. Only the scorer enters balls; the other phone watches until it takes over.</p>
+    <div class="grid2">
+      <button class="btn primary big" disabled={!canCreate} onclick={oncreate}>Create room</button>
+      <button class="btn big" onclick={onjoin}>Join room</button>
+    </div>
+    <p class="hint">
+      {canCreate ? 'Create room shows a code and QR code for this series.' : 'Start a match first to create a room.'}
+      Both phones need internet when they are on different networks.
+    </p>
+
+    <div class="label gap">Takeover mode</div>
     <p>When the other phone asks to take over scoring while this phone is the scorer:</p>
     <div class="seg">
       <button aria-pressed={takeover === 'ask'} onclick={() => onprefs({ ...prefs, takeover: 'ask' })}>Ask me first</button>
@@ -112,6 +139,23 @@
         ? 'You see a message and control moves only after you accept.'
         : 'Control moves immediately and this phone switches to watch-only.'}
     </p>
+
+    <div class="gap"><ShareList list={sharelist} {onremove} /></div>
+
+    <div class="label gap">TURN key (optional)</div>
+    {#if turn}
+      <p class="mono">Username {mask(turn.username)}<br />Credential ••••••••</p>
+      <button class="btn block" onclick={dropTurn}>Clear key</button>
+    {:else}
+      <p>
+        Helps phones on strict mobile networks connect. Sign up free at Open Relay (metered.ca), create a TURN app, and
+        copy its username and credential here.
+      </p>
+      <input class="field" autocomplete="off" spellcheck="false" placeholder="Username" bind:value={turnUser} />
+      <input class="field" type="password" autocomplete="off" placeholder="Credential" bind:value={turnPass} />
+      <button class="btn block gap" disabled={!turnUser.trim() || !turnPass.trim()} onclick={keepTurn}>Save key</button>
+    {/if}
+    <p class="hint">Saved on this phone only. It is never synced, backed up or sent anywhere except to the TURN server.</p>
   </section>
 
   <section class="card">
@@ -132,8 +176,8 @@
       app was closed, they open it and tap Resume match.
     </p>
     <p>
-      To score from a different phone, use <b>Share live</b> in the match menu and <b>Join live</b> on the other phone.
-      The phones connect directly; the watching phone can take over with one tap.
+      To score from a different phone, use <b>Create room</b> above (or <b>Share live</b> in the match menu) and
+      <b>Join room</b> on the other phone. The watching phone can take over with one tap.
     </p>
   </section>
 </main>
@@ -239,6 +283,23 @@
   .hint {
     margin: 10px 0 0 !important;
     font-size: 14px;
+  }
+
+  .field {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 8px;
+    padding: 0 12px;
+    border-radius: var(--radius);
+    border: 2px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+  }
+
+  .mono {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
   }
 
   .msg {
