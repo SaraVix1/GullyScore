@@ -51,11 +51,32 @@
     onjoin?.(c, name.trim() || 'Another phone');
   }
 
+  const canShare = !!navigator.share;
+  let linkBox;
+
+  // The clipboard API only exists on https pages and localhost. On a plain
+  // http LAN address (testing on a phone) fall back to the old copy command,
+  // and if that fails too, select the link so it can be copied by hand.
   async function copy() {
     try {
-      if (navigator.share) await navigator.share({ title: 'Gully Score room', text: 'Join my Gully Score room ' + snap.room, url: link });
-      else await navigator.clipboard.writeText(link);
+      await navigator.clipboard.writeText(link);
       copied = true;
+      return;
+    } catch {
+      /* not available here */
+    }
+    linkBox.focus();
+    linkBox.select();
+    try {
+      copied = document.execCommand('copy');
+    } catch {
+      copied = false;
+    }
+  }
+
+  async function share() {
+    try {
+      await navigator.share({ title: 'Gully Score room', text: 'Join my Gully Score room ' + snap.room, url: link });
     } catch {
       /* cancelled */
     }
@@ -93,8 +114,17 @@
         <p class="wait">Opening room…</p>
       {:else if !snap.connected}
         <QrCode text={link} />
+        <input
+          bind:this={linkBox}
+          class="field linkbox"
+          readonly
+          value={link}
+          aria-label="Room link"
+          onfocus={(e) => e.currentTarget.select()}
+        />
         <div class="row">
-          <button class="link" onclick={copy}>{copied ? 'Link shared' : 'Share link instead'}</button>
+          <button class="link" onclick={copy}>{copied ? '✓ Link copied' : 'Copy link'}</button>
+          {#if canShare}<button class="link" onclick={share}>Share…</button>{/if}
         </div>
         <p class="note">On the other phone: Settings → Sync → Join room, then scan this code.</p>
       {/if}
@@ -218,9 +248,18 @@
     gap: 8px;
   }
 
+  .linkbox {
+    margin-top: 10px;
+    min-height: 40px;
+    font-size: 13px;
+    color: var(--muted);
+    text-overflow: ellipsis;
+  }
+
   .row {
     display: flex;
     justify-content: center;
+    gap: 20px;
     margin: 4px 0 8px;
   }
 
