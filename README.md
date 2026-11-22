@@ -33,8 +33,8 @@ src/lib/teams.js        Built-in team names, emoji, colours
 src/lib/db.js           IndexedDB: current match, history, prefs, backup
 src/lib/share.js        Text / canvas-image scorecards, Web Share + fallbacks
 src/lib/qr.js           QR encoder + camera decoder (for iPhone, which lacks BarcodeDetector)
-src/lib/syncConfig.js   PeerJS server address, STUN/TURN URLs, room lifetime, limits (one place)
-src/lib/room.js         Room codes, rate limiter, ICE list, this phone's TURN key (unit-tested)
+src/lib/syncConfig.js   PeerJS server address, STUN URLs, room lifetime, limits (one place)
+src/lib/room.js         Room codes, rate limiter, ICE list (unit-tested)
 src/lib/sync.js         Live sync rules: one scorer, takeover, resync (unit-tested)
 src/lib/live.js         PeerJS rooms: join approval, share list, reconnects, expiry
 src/screens/            Setup, Scoring, Result, History, Settings
@@ -109,11 +109,9 @@ How it works:
   the two phones. Match data goes phone to phone over an encrypted WebRTC data channel and is
   never stored on any server. GitHub Pages is static, so there is no backend of ours; to use a
   self-hosted PeerJS server, change `PEER_SERVER` in `src/lib/syncConfig.js`.
-- **TURN (optional):** phones on strict mobile networks sometimes can't reach each other
-  directly. Sign up free at Open Relay (metered.ca), create a TURN app, and paste its username
-  and credential in **Settings → Sync → TURN key**. The key is saved in that phone's
-  localStorage only, shown masked, and never synced, backed up or committed. **Clear key**
-  removes it. No key is in the code.
+- **No keys, no paid services.** Only the free PeerJS cloud server and free public STUN
+  servers are used. There is no TURN relay, so a few strict mobile networks may block a
+  direct connection; if that happens, put one phone on Wi-Fi or the other phone's hotspot.
 - **Rooms:** codes are 12 random symbols (60 bits) from `crypto.getRandomValues`. A room
   closes after 3 hours without activity. After a reload the scoring phone reopens the same
   room for the same series, so the other phone reconnects with the code it has.
@@ -125,7 +123,7 @@ How it works:
   20/s), and a flooding connection is closed. Nothing is logged; PeerJS runs with logging off.
 - **Reconnects:** if the link drops, the joining phone retries on its own (and at once when
   the phone comes back online), and the phones resync. If the phones haven't connected after
-  20 seconds, the Sync sheet shows a hint about internet and TURN. If the scoring phone is gone
+  20 seconds, the Sync sheet shows a hint about internet and networks. If the scoring phone is gone
   (flat battery), the watcher can **Take over anyway**; if the old phone returns, it becomes
   the watcher.
 - Both phones need internet (Wi-Fi or mobile data). The camera needs HTTPS, which GitHub
@@ -135,6 +133,9 @@ How it works:
 
 1. One phone, local: `npm run dev -- --host`, open it in two browser windows (one private),
    create a room in one and join from the other.
+   The browser must be able to reach `wss://0.peerjs.com`; if a firewall or proxy blocks it,
+   the console shows `WebSocket connection to 'wss://0.peerjs.com/peerjs?...' failed` and the
+   Sync sheet says "Can't reach the sync server".
 2. Two real phones on the GitHub Pages link, one on Wi-Fi and one on mobile data.
 3. Check a takeover in both modes, then turn on airplane mode on the watcher for a few
    seconds, score a ball, turn it off: the watcher resyncs on its own.

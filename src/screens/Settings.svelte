@@ -3,24 +3,9 @@
   import { downloadBlob } from '../lib/share.js';
   import { PRESETS, getMode, setMode, getAccent, setAccent } from '../lib/theme.js';
   import { inkFor } from '../lib/teams.js';
-  import { loadTurn, saveTurn, clearTurn, mask } from '../lib/room.js';
   import ShareList from '../components/ShareList.svelte';
 
   let { prefs = {}, onprefs, onback, onimported, canCreate = false, sharelist = [], oncreate, onjoin, onremove } = $props();
-
-  // TURN key from the user's own Open Relay account, on this phone only.
-  let turn = $state(loadTurn());
-  let turnUser = $state('');
-  let turnPass = $state('');
-  function keepTurn() {
-    saveTurn(turnUser.trim(), turnPass.trim());
-    turn = loadTurn();
-    turnUser = turnPass = '';
-  }
-  function dropTurn() {
-    clearTurn();
-    turn = null;
-  }
   const takeover = $derived(prefs.takeover || 'ask');
 
   // Appearance is saved on this phone only and never synced.
@@ -141,21 +126,6 @@
     </p>
 
     <div class="gap"><ShareList list={sharelist} {onremove} /></div>
-
-    <div class="label gap">TURN key (optional)</div>
-    {#if turn}
-      <p class="mono">Username {mask(turn.username)}<br />Credential ••••••••</p>
-      <button class="btn block" onclick={dropTurn}>Clear key</button>
-    {:else}
-      <p>
-        Helps phones on strict mobile networks connect. Sign up free at Open Relay (metered.ca), create a TURN app, and
-        copy its username and credential here.
-      </p>
-      <input class="field" autocomplete="off" spellcheck="false" placeholder="Username" bind:value={turnUser} />
-      <input class="field" type="password" autocomplete="off" placeholder="Credential" bind:value={turnPass} />
-      <button class="btn block gap" disabled={!turnUser.trim() || !turnPass.trim()} onclick={keepTurn}>Save key</button>
-    {/if}
-    <p class="hint">Saved on this phone only. It is never synced, backed up or sent anywhere except to the TURN server.</p>
   </section>
 
   <section class="card">
@@ -285,22 +255,6 @@
     font-size: 14px;
   }
 
-  .field {
-    width: 100%;
-    min-height: 48px;
-    margin-top: 8px;
-    padding: 0 12px;
-    border-radius: var(--radius);
-    border: 2px solid var(--line);
-    background: var(--surface-2);
-    color: var(--text);
-    font: inherit;
-  }
-
-  .mono {
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 1px;
-  }
 
   .msg {
     color: var(--accent-text) !important;

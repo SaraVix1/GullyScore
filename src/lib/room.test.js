@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeRoomCode, parseRoomCode, roomLink, peerIdFor, createLimiter, iceServers, isExpired, mask } from './room.js';
+import { makeRoomCode, parseRoomCode, roomLink, peerIdFor, createLimiter, iceServers, isExpired } from './room.js';
 
 test('room codes are 12 random symbols in 3 groups', () => {
   const a = makeRoomCode();
@@ -31,18 +31,15 @@ test('limiter allows a burst then refills over time', () => {
   assert.equal(ok(), false);
 });
 
-test('TURN is added only with a full key', () => {
-  assert.equal(iceServers(null).length, 1);
-  assert.equal(iceServers({ username: 'u' }).length, 1);
-  const s = iceServers({ username: 'u', credential: 'c' });
-  assert.equal(s[1].username, 'u');
-  assert.ok(s[1].urls.every((u) => u.startsWith('turn')));
+test('ICE uses free STUN only, no keys', () => {
+  const s = iceServers();
+  assert.equal(s.length, 1);
+  assert.ok(s[0].urls.every((u) => u.startsWith('stun:')));
+  assert.equal(s[0].username, undefined);
 });
 
-test('expiry and masking', () => {
+test('expiry', () => {
   assert.equal(isExpired(1000, 2000), false);
   assert.equal(isExpired(0, 2000), true);
   assert.equal(isExpired(1, 4 * 3600e3), true);
-  assert.equal(mask('abcdefghij'), 'ab••••••ij');
-  assert.equal(mask('abc'), '••••••');
 });

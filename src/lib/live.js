@@ -1,8 +1,7 @@
 // Live sharing between two phones in a room, over a PeerJS (WebRTC) data
 // channel. The PeerJS cloud server only introduces the phones; the match goes
-// phone to phone, encrypted, and is never stored on any server. With a TURN key
-// saved on this phone, phones on strict mobile networks connect through Open
-// Relay, which only forwards the encrypted bytes.
+// phone to phone, encrypted, and is never stored on any server. No keys or
+// paid relay services are used.
 //
 // The phone that creates the room is its host. A joining phone says hello with
 // its device id; the host lets it in only if it is on the series' share list,
@@ -15,7 +14,7 @@
 //        retrying on its own)
 import { Peer } from 'peerjs';
 import { PEER_SERVER, ROOM_PREFIX, CONNECT_HINT_MS, MAX_MESSAGE, RATE, ROOM_TTL_MS } from './syncConfig.js';
-import { createLimiter, iceServers, loadTurn, makeRoomCode, peerIdFor, loadRoom, saveRoom, clearRoom } from './room.js';
+import { createLimiter, iceServers, makeRoomCode, peerIdFor, loadRoom, saveRoom, clearRoom } from './room.js';
 import { createSync } from './sync.js';
 
 const REFUSED = {
@@ -39,7 +38,9 @@ export function createLive({ deviceId, mode, onChange, store, allowed }) {
   let last = 0;
   let saved = 0;
   let slow = false;
-  let timers = { slow: 0, retry: 0, ttl: 0 };
+  let timers = { slow: 0, retry: 0, ttl: 0, server: 0 };
+  let serverTries = 0;
+  let serverDown = false; // can't reach the signalling server
   let tries = 0;
 
   const emit = () => onChange(api);
@@ -82,7 +83,9 @@ export function createLive({ deviceId, mode, onChange, store, allowed }) {
 
   function stop(msg = '') {
     for (const t of Object.values(timers)) clearTimeout(t), clearInterval(t);
-    timers = { slow: 0, retry: 0, ttl: 0 };
+    timers = { slow: 0, retry: 0, ttl: 0, server: 0 };
+    serverTries = 0;
+    serverDown = false;
     removeEventListener('online', redialNow);
     const p = peer;
     peer = link = dialing = joinReq = null;
@@ -221,11 +224,27 @@ export function createLive({ deviceId, mode, onChange, store, allowed }) {
   // ---------- both ----------
 
   function newPeer(id) {
-    const p = new Peer(id, { ...PEER_SERVER, debug: 0, config: { iceServers: iceServers(loadTurn()) } });
+    const p = new Peer(id, { ...PEER_SERVER, debug: 0, config: { iceServers: iceServers() } });
     peer = p;
-    const later = (ms) => setTimeout(() => p === peer && revive(), ms);
+    // One retry at a time, backing off 2 s, 4 s, 8 s ... 30 s, so an
+    // unreachable server is not hammered (PeerJS reports a failure through
+    // both 'error' and 'disconnected').
+    const later = () => {
+      if (timers.server) return;
+      const wait = Math.min(30_000, 2000 * 2 ** Math.min(serverTries++, 4));
+      timers.server = setTimeout(() => {
+        timers.server = 0;
+        if (p === peer) revive();
+      }, wait);
+    };
+    p.on('open', () => {
+      if (p !== peer) return;
+      serverTries = 0;
+      serverDown = false;
+      emit();
+    });
     // Lost the signalling server (not the other phone): reconnect quietly.
-    p.on('disconnected', () => later(3000));
+    p.on('disconnected', later);
     p.on('error', (e) => {
       if (p !== peer) return;
       const type = e?.type;
@@ -235,14 +254,18 @@ export function createLive({ deviceId, mode, onChange, store, allowed }) {
         // the server for a few seconds.
         if (tries++ > 12) return stop('That room code is in use. Create a new room.');
         p.destroy();
-        return later(5000);
+        return later();
       }
       if (type === 'peer-unavailable' && !host) {
         dialing = null;
         if (!everJoined) return stop('Room not found. Check the code; rooms close after 3 hours without activity.');
         return redialLater(); // the host may be reloading
       }
-      if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(type)) later(5000);
+      if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(type)) {
+        serverDown = !p.open;
+        emit();
+        later();
+      }
     });
     timers.ttl ||= setInterval(() => {
       if (Date.now() - last > ROOM_TTL_MS) stop('The room closed after 3 hours without activity.');
@@ -287,6 +310,7 @@ export function createLive({ deviceId, mode, onChange, store, allowed }) {
         host,
         room,
         slow,
+        serverDown,
         error,
         role: sync.role,
         connected: s.connected,

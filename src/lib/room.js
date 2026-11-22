@@ -1,6 +1,6 @@
 // Room codes, limits and this phone's own sync settings. Pure helpers are
 // unit-tested; storage helpers use localStorage and never throw.
-import { STUN_URLS, TURN_URLS, ROOM_TTL_MS } from './syncConfig.js';
+import { STUN_URLS, ROOM_TTL_MS } from './syncConfig.js';
 
 // 32 symbols without 0, 1, I and O (easy to read aloud and type).
 const ALPHA = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -39,13 +39,7 @@ export function createLimiter({ burst, perSec }, now = () => Date.now()) {
   };
 }
 
-export function iceServers(turn) {
-  const list = [{ urls: STUN_URLS }];
-  if (turn?.username && turn?.credential) list.push({ urls: TURN_URLS, username: turn.username, credential: turn.credential });
-  return list;
-}
-
-export const mask = (s) => (!s ? '' : s.length <= 6 ? '••••••' : s.slice(0, 2) + '••••••' + s.slice(-2));
+export const iceServers = () => [{ urls: STUN_URLS }];
 
 // ---------- saved on this phone only (never synced, never in backups) ----------
 
@@ -63,11 +57,6 @@ const write = (k, v) => {
     /* storage blocked */
   }
 };
-
-// TURN key from the user's own Open Relay account: { username, credential }.
-export const loadTurn = () => read('gully-turn');
-export const saveTurn = (username, credential) => write('gully-turn', { username, credential });
-export const clearTurn = () => write('gully-turn', null);
 
 // The last room, so a reload can reopen or rejoin it: { code, host, series, last }.
 export const loadRoom = () => {

@@ -4,7 +4,7 @@
   import QrCode from './QrCode.svelte';
   import Scanner from './Scanner.svelte';
   import ShareList from './ShareList.svelte';
-  import { parseRoomCode, roomLink, loadRoom, loadName, saveName, loadTurn } from '../lib/room.js';
+  import { parseRoomCode, roomLink, loadRoom, loadName, saveName } from '../lib/room.js';
 
   // start: 'join' (form) | 'status' (in a room) | 'error'
   let {
@@ -29,7 +29,6 @@
   let scanning = $state(false);
   let bad = $state('');
   let copied = $state(false);
-  const hasTurn = !!loadTurn();
 
   const inRoom = $derived(snap && snap.phase !== 'idle');
   const link = $derived(snap?.room ? roomLink(location.href, snap.room) : '');
@@ -124,10 +123,14 @@
       <p class="wait">Connecting to room {snap.room}…</p>
     {/if}
 
-    {#if snap.slow}
+    {#if snap.serverDown}
       <p class="hint warn">
-        Still connecting. Check that both phones have internet. On some mobile networks the phones can't reach each
-        other directly{hasTurn ? '; your TURN key is in use' : ': add a free TURN key in Settings → Sync'}.
+        Can't reach the sync server. Check that this phone has internet (Wi-Fi or mobile data); it keeps trying.
+      </p>
+    {:else if snap.slow}
+      <p class="hint warn">
+        Still connecting. Check that both phones have internet. Some mobile networks block direct connections between
+        phones; if it keeps failing, put one phone on Wi-Fi or use the other phone's hotspot.
       </p>
     {/if}
 
