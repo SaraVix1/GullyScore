@@ -489,18 +489,8 @@
     gap: 8px;
   }
 
+  /* Same caption as every other toast (app.css), above open sheets. */
   .toast {
-    position: fixed;
-    left: 50%;
-    top: calc(env(safe-area-inset-top) + 16px);
-    transform: translateX(-50%);
     z-index: 90;
-    max-width: calc(100% - 32px);
-    padding: 12px 18px;
-    border-radius: 2px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-weight: 800;
-    pointer-events: none;
   }
 </style>
