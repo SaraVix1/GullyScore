@@ -10,6 +10,8 @@
     deleteHistory,
     saveToHistory,
     listSeries,
+    loadShareList,
+    saveShareList,
     deviceId,
     migrateLocalStorage,
     requestPersistence,
@@ -40,8 +42,11 @@
   let live = $state.raw(null);
   let snap = $state.raw(null);
   let LiveSheet = $state.raw(null);
-  let liveSheet = $state(null); // { start } while the pairing sheet is open
+  let liveSheet = $state(null); // { start, code?, error? } while the sync sheet is open
+  let shareList = $state.raw([]);
   let lastRole = null;
+  let createLive = null;
+  let myId = null;
 
   const viewing = $derived(!!snap && snap.role === 'viewer' && snap.phase !== 'idle');
   const st = $derived(match ? getState(match) : null);
@@ -64,10 +69,10 @@
     window.scrollTo(0, 0);
   });
 
-  function flash(msg) {
+  function flash(msg, ms = 2800) {
     toast = msg;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (toast = ''), 2800);
+    toastTimer = setTimeout(() => (toast = ''), ms);
   }
 
   async function boot() {
@@ -88,6 +93,12 @@
     }
     ready = true;
     requestPersistence();
+    // Opened from a scanned room QR code (phone camera app).
+    if (/[#&]room=/.test(location.hash)) {
+      const code = location.hash;
+      history.replaceState(null, '', location.pathname + location.search);
+      openLive('join', code);
+    }
   }
   boot();
 
@@ -158,6 +169,12 @@
   function onLive(l) {
     if (l !== live) return; // a session the user already left
     const next = l.snapshot;
+    if (next.phase === 'idle' && next.error) {
+      // Room not found, expired, or this phone was refused or removed.
+      leaveLive();
+      liveSheet = { start: 'error', error: next.error };
+      return;
+    }
     const s = l.sync.state;
     const was = lastRole;
     lastRole = next.role;
@@ -179,29 +196,89 @@
     if (next.note) flash(next.note);
   }
 
-  async function openLive(start) {
+  async function loadLive() {
+    if (createLive) return;
+    const [mod, sheet, id] = await Promise.all([
+      import('./lib/live.js'),
+      import('./components/LiveSheet.svelte'),
+      deviceId(),
+    ]);
+    LiveSheet = sheet.default;
+    myId = id;
+    createLive = mod.createLive;
+  }
+
+  function ensureLive() {
+    if (live) return live;
+    const l = createLive({
+      deviceId: myId,
+      mode: () => prefs.takeover || 'ask',
+      onChange: onLive,
+      store: { list: listSeries, add: saveToHistory },
+      allowed: async (id) => (await loadShareList(l.sync.state.series)).some((p) => p.id === id),
+    });
+    live = l;
+    snap = l.snapshot;
+    return l;
+  }
+
+  // The series whose share list applies: the room's, else the one on screen.
+  const shareSeries = () => live?.sync.state.series || match?.series || saved?.series || seed?.series || null;
+  async function refreshShare() {
+    shareList = await loadShareList(shareSeries()).catch(() => []);
+  }
+
+  // start: 'create' (open a room for this series) | 'join' (code form)
+  async function openLive(start, code = '') {
     try {
-      if (!live) {
-        const [{ createLive }, sheet, id] = await Promise.all([
-          import('./lib/live.js'),
-          import('./components/LiveSheet.svelte'),
-          deviceId(),
-        ]);
-        LiveSheet = sheet.default;
-        live = createLive({
-          deviceId: id,
-          mode: () => prefs.takeover || 'ask',
-          onChange: onLive,
-          store: { list: listSeries, add: saveToHistory },
-        });
-        snap = live.snapshot;
-      }
-      // The phone that shares a match it is scoring starts as the scorer.
-      if (match && !live.sync.state.scorer) live.sync.host(match);
-      liveSheet = { start };
+      await loadLive();
     } catch {
-      flash('Live sharing is not supported on this browser');
+      return flash('Live sharing is not supported on this browser');
     }
+    if (live && live.phase !== 'idle') {
+      liveSheet = { start: 'status' };
+      return refreshShare();
+    }
+    if (start !== 'create') return (liveSheet = { start: 'join', code });
+    const series = match?.series || seed?.series;
+    if (!series) return flash('Start a match first, then create the room');
+    const l = ensureLive();
+    l.sync.host(match, series);
+    l.createRoom();
+    liveSheet = { start: 'status' };
+    refreshShare();
+  }
+
+  // From Settings: share the match in progress (resuming it if needed).
+  function createFromSettings() {
+    if (!match && saved) resume();
+    page = null;
+    openLive('create');
+  }
+
+  function joinRoom(code, name) {
+    ensureLive().joinRoom(code, name);
+    liveSheet = { start: 'status' };
+  }
+
+  async function answerJoin(allow) {
+    const r = snap?.joinReq;
+    const series = shareSeries();
+    if (!r) return;
+    if (allow && series) {
+      const list = (await loadShareList(series)).filter((p) => p.id !== r.id);
+      await saveShareList(series, [...list, { id: r.id, name: r.name }]);
+    }
+    live?.answerJoin(allow);
+    refreshShare();
+  }
+
+  async function removeShare(id) {
+    const series = shareSeries();
+    if (!series) return;
+    await saveShareList(series, (await loadShareList(series)).filter((p) => p.id !== id));
+    live?.remove(id);
+    refreshShare();
   }
 
   function leaveLive() {
@@ -212,7 +289,10 @@
     snap = null;
     lastRole = null;
     liveSheet = null;
-    if (wasViewer) match = null;
+    if (wasViewer) {
+      match = null;
+      reloadSaved();
+    }
   }
 
   function takeOver() {
@@ -233,7 +313,7 @@
 
   const liveProps = $derived({
     live: snap && snap.phase !== 'idle' ? snap : null,
-    onlive: () => openLive(viewing ? 'scan' : 'choose'),
+    onlive: () => openLive(viewing ? 'join' : 'create'),
     ontakeover: takeOver,
     onforce: forceTakeOver,
     onleave: leaveLive,
@@ -257,7 +337,17 @@
     ondelete={() => deleteRecord(page.record.id)}
   />
 {:else if screen === 'settings'}
-  <Settings {prefs} onprefs={savePrefsNow} onback={() => (page = null)} onimported={reloadSaved} />
+  <Settings
+    {prefs}
+    onprefs={savePrefsNow}
+    onback={() => (page = null)}
+    onimported={reloadSaved}
+    canCreate={!!(match || saved || seed?.series)}
+    sharelist={shareList}
+    oncreate={createFromSettings}
+    onjoin={() => ((page = null), openLive('join'))}
+    onremove={removeShare}
+  />
 {:else if screen === 'waiting'}
   <main class="waiting">
     <div class="big">👀</div>
@@ -265,10 +355,14 @@
     <p>
       {snap.connected
         ? 'Connected. Waiting for the scorer to start a match…'
-        : 'Not connected to the other phone.'}
+        : snap.phase === 'approval'
+          ? 'Waiting for the scorer to let this phone in…'
+          : snap.phase === 'lost'
+            ? 'Connection lost. Reconnecting…'
+            : 'Connecting to the room…'}
     </p>
     {#if !snap.connected}
-      <button class="btn primary block big" onclick={() => openLive('scan')}>Reconnect</button>
+      <button class="btn primary block big" onclick={() => openLive('join')}>Room details</button>
     {/if}
     <button class="btn ghost block big" onclick={leaveLive}>Stop watching</button>
   </main>
@@ -281,8 +375,8 @@
       onresume={resume}
       ondiscard={discard}
       onhistory={() => (page = 'history')}
-      onsettings={() => (page = 'settings')}
-      onjoin={() => openLive('scan')}
+      onsettings={() => ((page = 'settings'), refreshShare())}
+      onjoin={() => openLive('join')}
     />
   {/key}
 {:else if screen === 'result'}
@@ -300,16 +394,36 @@
   <Scoring {match} {st} viewer={viewing} onchange={update} onabandon={() => toSetup(prefs)} {...liveProps} />
 {/if}
 
-{#if liveSheet && LiveSheet && snap}
+{#if liveSheet && LiveSheet}
+  {#key liveSheet}
   <LiveSheet
-    {live}
     {snap}
     start={liveSheet.start}
+    code={liveSheet.code}
+    error={liveSheet.error}
     takeover={prefs.takeover || 'ask'}
+    sharelist={shareList}
     ontakeovermode={(t) => savePrefsNow({ ...prefs, takeover: t })}
+    onjoin={joinRoom}
+    onremove={removeShare}
+    onretry={() => live?.retry()}
     onclose={() => (liveSheet = null)}
     onleave={leaveLive}
   />
+  {/key}
+{/if}
+
+{#if snap?.joinReq}
+  <Sheet title="Let this phone join?" onclose={() => answerJoin(false)}>
+    <p class="note">
+      <b>{snap.joinReq.name}</b> wants to join this series. Letting it in adds it to the share list; you can remove it
+      at any time.
+    </p>
+    <div class="grid2">
+      <button class="btn big" onclick={() => answerJoin(false)}>No</button>
+      <button class="btn primary big" onclick={() => answerJoin(true)}>Let in</button>
+    </div>
+  </Sheet>
 {/if}
 
 {#if snap?.request}
@@ -375,18 +489,8 @@
     gap: 8px;
   }
 
+  /* Same caption as every other toast (app.css), above open sheets. */
   .toast {
-    position: fixed;
-    left: 50%;
-    top: calc(env(safe-area-inset-top) + 16px);
-    transform: translateX(-50%);
     z-index: 90;
-    max-width: calc(100% - 32px);
-    padding: 12px 18px;
-    border-radius: 2px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-weight: 800;
-    pointer-events: none;
   }
 </style>

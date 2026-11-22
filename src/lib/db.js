@@ -1,6 +1,7 @@
 // IndexedDB storage. One database, two stores:
 //   kv       'current' -> the match being scored, 'prefs' -> setup defaults,
-//            'next' -> teams kept by "Continue with same teams"
+//            'next' -> teams kept by "Continue with same teams",
+//            'share:<series>' -> phones allowed to join that series' room
 //   history  finished matches, keyed by match id
 // Each save runs in a single readwrite transaction, so a ball is either fully
 // stored or not at all: a crash mid-write can never leave a half-saved match.
@@ -111,6 +112,14 @@ export const clearHistory = () =>
 export async function listSeries(series) {
   return (await listHistory()).map((r) => r.match).filter((m) => m.series === series);
 }
+
+// Share list of a series: the phones allowed to join its room, [{ id, name }].
+// Kept on the phone that opens the room; not synced and not in backups.
+export async function loadShareList(series) {
+  if (!series) return [];
+  return (await run(['kv'], 'readonly', ({ kv }) => kv.get('share:' + series))) || [];
+}
+export const saveShareList = (series, list) => run(['kv'], 'readwrite', ({ kv }) => kv.put(list, 'share:' + series));
 
 // ---------- backup ----------
 

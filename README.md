@@ -9,8 +9,9 @@ the phone in IndexedDB.
 - Teams with emoji + colour identities, local rule toggles, free hits, retirements,
   penalty runs, mid-over bowler changes, Super Over, share as text or image,
   match history, JSON backup/restore
-- Live sharing between two phones over WebRTC, paired by scanning QR codes, with
-  safe handover of the scorer role. Loaded only when used (~28 KB, 12 KB gzipped)
+- Live sync between two phones over WebRTC (PeerJS), even on different networks:
+  create a room, the other phone scans its QR code or types the code. Safe handover
+  of the scorer role. Loaded only when used (~115 KB, 35 KB gzipped)
 
 ## Develop
 
@@ -32,9 +33,10 @@ src/lib/teams.js        Built-in team names, emoji, colours
 src/lib/db.js           IndexedDB: current match, history, prefs, backup
 src/lib/share.js        Text / canvas-image scorecards, Web Share + fallbacks
 src/lib/qr.js           QR encoder + camera decoder (for iPhone, which lacks BarcodeDetector)
-src/lib/signal.js       Packs WebRTC offers/answers into short QR-friendly codes
+src/lib/syncConfig.js   PeerJS server address, STUN URLs, room lifetime, limits (one place)
+src/lib/room.js         Room codes, rate limiter, ICE list (unit-tested)
 src/lib/sync.js         Live sync rules: one scorer, takeover, resync (unit-tested)
-src/lib/live.js         WebRTC data channel wiring for live sharing
+src/lib/live.js         PeerJS rooms: join approval, share list, reconnects, expiry
 src/screens/            Setup, Scoring, Result, History, Settings
 src/components/         Sheet, Scorecard, TeamEditor, ShareSheet, Badge
 src/sw.js               Service worker template (precache list filled in at build)
@@ -82,38 +84,61 @@ renaming a player later doesn't change old scorecards.
   `index.html` applies the saved choice before first paint. `npm test` includes
   `src/lib/contrast.test.js`, which checks the contrast of the main pairs in both themes.
 
-## Live sharing (two phones)
+## Live sync (two phones)
 
-1. On the scoring phone: match menu **⋯ → Share live → Show my code first**.
-2. On the other phone: **Join live** on the start screen, and scan the code.
-3. The second phone now shows a **reply code**: tap **Next: scan their reply** on the
-   first phone and scan it. Both phones show **Live**.
+1. On the scoring phone: **Settings → Sync → Create room** (or match menu ⋯ → **Share live**).
+   It shows a room code such as `KV7A-74EA-4ZZG` and a QR code for the current series.
+2. On the other phone: **Settings → Sync → Join room** (or **Join live** on the start
+   screen), then scan the QR code or type the code. Scanning it with the phone's own
+   camera app also works: the QR code is a link that opens Gully Score on the join screen.
+3. The first time, the scoring phone asks **Let this phone join?** Tapping **Let in** adds
+   that phone to the series' **share list**; next time it joins without asking.
 
 The watching phone sees every ball as it happens and can tap **Take over scoring**.
-In **Settings** (or the live sharing sheet) the scorer picks the takeover mode:
-**Ask me first** (control moves only after the scorer accepts) or **Instant**.
-Whoever takes control becomes the only scorer; the other phone turns watch-only.
+**Takeover mode** (Settings → Sync, or the Sync sheet) is **Ask me first** (control moves
+only after the scorer accepts) or **Instant**. Whoever takes control becomes the only scorer;
+the other phone turns watch-only.
 
-How it works and what to expect:
+What gets synced: the whole current series, meaning every finished match in it (with its
+edit log) plus the live match. Each phone sends only the finished matches the other lacks.
+Older series are never sent.
 
-- No server stores or relays the match. A free public STUN server
-  (`stun.l.google.com`, `stun.cloudflare.com`) only tells each phone its own
-  public address; the phones then talk directly over an encrypted data channel.
-- Without a signalling server, the phones swap connection details by QR code both
-  ways. The codes pack only the needed fields (about 150 characters). If a camera
-  can't scan, **Copy code** / **Paste the code** works over any messaging app.
-- Scorer authority is a counter that rises on every handover, so a phone can never
-  score while another holds the role: the old scorer steps down before the new one
-  is promoted.
-- Short blips recover on their own and the phones resync. If the link drops fully,
-  tap **Reconnect** and scan codes again; the phones resync automatically. If the
-  scoring phone is gone (flat battery), the watcher can **Take over anyway**; if the
-  old phone returns, it becomes the watcher and any balls it scored offline are
-  dropped in favour of the new scorer's.
-- Direct connections work best when both phones share a Wi-Fi network or one
-  phone's hotspot. Two phones on different mobile networks may fail to connect,
-  because there is no relay (TURN) server.
-- The camera needs HTTPS, which GitHub Pages and Cloudflare Pages provide.
+How it works:
+
+- **Signalling** uses the free PeerJS cloud server (`0.peerjs.com`), which only introduces
+  the two phones. Match data goes phone to phone over an encrypted WebRTC data channel and is
+  never stored on any server. GitHub Pages is static, so there is no backend of ours; to use a
+  self-hosted PeerJS server, change `PEER_SERVER` in `src/lib/syncConfig.js`.
+- **No keys, no paid services.** Only the free PeerJS cloud server and free public STUN
+  servers are used. There is no TURN relay, so a few strict mobile networks may block a
+  direct connection; if that happens, put one phone on Wi-Fi or the other phone's hotspot.
+- **Rooms:** codes are 12 random symbols (60 bits) from `crypto.getRandomValues`. A room
+  closes after 3 hours without activity. After a reload the scoring phone reopens the same
+  room for the same series, so the other phone reconnects with the code it has.
+- **Share list:** only phones on the series' list get in; others must be let in by the room's
+  phone. **Remove** cuts that phone off at once and moves the room to a new code, so the old
+  code stops working. The list is kept on the phone that creates the room. One other phone
+  can be connected at a time.
+- **Limits:** messages over 250 KB are dropped, incoming messages are rate-limited (burst 100,
+  20/s), and a flooding connection is closed. Nothing is logged; PeerJS runs with logging off.
+- **Reconnects:** if the link drops, the joining phone retries on its own (and at once when
+  the phone comes back online), and the phones resync. If the phones haven't connected after
+  20 seconds, the Sync sheet shows a hint about internet and networks. If the scoring phone is gone
+  (flat battery), the watcher can **Take over anyway**; if the old phone returns, it becomes
+  the watcher.
+- Both phones need internet (Wi-Fi or mobile data). The camera needs HTTPS, which GitHub
+  Pages and Cloudflare Pages provide.
+
+### Testing sync
+
+1. One phone, local: `npm run dev -- --host`, open it in two browser windows (one private),
+   create a room in one and join from the other.
+   The browser must be able to reach `wss://0.peerjs.com`; if a firewall or proxy blocks it,
+   the console shows `WebSocket connection to 'wss://0.peerjs.com/peerjs?...' failed` and the
+   Sync sheet says "Can't reach the sync server".
+2. Two real phones on the GitHub Pages link, one on Wi-Fi and one on mobile data.
+3. Check a takeover in both modes, then turn on airplane mode on the watcher for a few
+   seconds, score a ball, turn it off: the watcher resyncs on its own.
 
 ## Deploy
 
